@@ -1,4 +1,4 @@
-balena-svc
+node-svc-base
 ===
 
 Bringing some consistent form and best-practices to node apps.
