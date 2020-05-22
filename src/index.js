@@ -22,10 +22,10 @@ class Svc {
     }
     setupApp() {
         this.app = this.metrics.collectAPIMetrics(express());
-        const readyHandler = this.config.isReady ? (
-            (req, res) => {
+        const readyHandler = !this.config.isReady ? pingHandler :
+            ((req, res) => {
                 res.sendStatus(this.config.isReady() ? 200 : 503);
-            }) || pingHandler;
+            });
         this.app.use('/ready', readyHandler);
         this.app.listen(SVC_PORT);
     }
