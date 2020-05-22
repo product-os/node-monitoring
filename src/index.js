@@ -6,6 +6,10 @@ const { MetricsGatherer } = require('@balena/node-metrics-gatherer');
 
 const pingHandler = (req, res) => res.sendStatus(200);
 
+const SVC_PORT = parseInt(process.env['NODE_SVC_BASE_SVC_PORT'], 10) || 8080;
+const METRICS_PORT = parseInt(process.env['NODE_SVC_BASE_METRICS_PORT'], 10) || 9090;
+const MONITOR_DISCOVERY_PORT = parseInt(process.env['NODE_SVC_BASE_MONITOR_DISCOVERY_PORT'], 10) || 9393;
+
 class Svc {
     constructor(name, config) {
         this.name = name;
@@ -18,15 +22,16 @@ class Svc {
     }
     setupApp() {
         this.app = this.metrics.collectAPIMetrics(express());
-        const readyHandler = (req, res) => {
-            res.sendStatus(this.config.isReady() ? 200 : 503);
-        };
-        this.app.use('/ready', readyHandler || ping);
-        this.app.listen(8080);
+        const readyHandler = this.config.isReady ? (
+            (req, res) => {
+                res.sendStatus(this.config.isReady() ? 200 : 503);
+            }) || pingHandler;
+        this.app.use('/ready', readyHandler);
+        this.app.listen(SVC_PORT);
     }
     setupMetrics() {
         this.serveDashboardsAndAlerts();
-        this.metrics.exportOn(9090);
+        this.metrics.exportOn(METRICS_PORT);
         this.config.describeMetrics(this.metrics);
     }
     serveDashboardsAndAlerts() {
@@ -54,7 +59,7 @@ class Svc {
                 res.sendStatus(404);
             }
         });
-        app.listen(9393);
+        app.listen(MONITOR_DISCOVERY_PORT);
     }
 }
 
