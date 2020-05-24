@@ -3,48 +3,81 @@ node-svc-base
 
 Bringing some consistent form and best-practices to node apps.
 
-### Basic usage:
+### Basic usage
 
-Components will define a `service.js` or `service.ts` file which exports a metrics object and an express app.
+Create a `svc.js`:
 
 ```javascript
-const Svc = require('@balena/balena-svc');
+const { Svc } = require('@balena/node-svc-base');
 
-const svc = new Svc('delta',
+const { describeMetrics } = require('./metrics');
+const { healthCheck, handleSIGTERM } = require('./process');
+
+const svc = new Svc('mock-svc',
     {
-        isReady,
+        healthCheck,
         describeMetrics,
         handleSIGTERM,
     }
 );
 
-module.exports = {
-    app: svc.app;
-    metrics: svc.metrics
+module.exports = svc;
+```
+
+This requires functions of types:
+```typescript
+    healthCheck: () => Promise<boolean>,
+    describeMetrics: (metrics: MetricsGatherer) => void,
+    handleSIGTERM: () => Promise<void>,
+```
+
+and this would allow use in other files, like:
+
+```javascript
+const svc = require('./svc');
+const { app, metrics, server } = svc;
+
+app.get('/hello', (req, res) => {
+    metrics.inc('hello_total', 1);
+    ses.send('hello');
+});
+server.timeout = 90000;
+svc.setInitialized();
+```
+or, in typescript,
+
+```typescript
+import * as svc from './svc';
+...
+```
+
+**NOTE**: It's important to call `setInitialized()` when your app is ready to serve, or it won't be marked healthy by k8s.
+
+See `./automation/usr/src/app/` for the full example app.
+
+### Params
+
+The full params available when constructing a service can be seen in `src/index.ts`:
+
+```typescript
+interface Params {
+	healthCheck: () => Promise<boolean>;
+	describeMetrics: (metrics: MetricsGatherer) => void;
+	handleSIGTERM: () => Promise<void>;
+	monitoringDir?: string;
+	app?: express.Application;
 }
 ```
 
-where
-
-- `isReady` is a function returning true/false whether the service is ready to serve
-- `describeMetrics` is a function in which component authors should call `metrics.describe.${type}(...)` for all metrics which will be exported by the service
-- `handleSIGTERM` is a function which will be called when the container receives SIGTERM from kubelet
-
-Elsewhere in the component, one can then import these for use, eg.:
-
-```javascript
-const { app, metrics } = require('../service');
-
-app.use('/hello', (req, res) => {
-    metrics.counter('hello_total', 1);
-});
-```
-
-**Ports:**
+### Ports
 
 - `8080` express app (components add their routes, middlewares here)
 - `9090` prometheus metrics (from @balena/node-metrics-gatherer)
 - `9393` service-discovery for dashboards and alerts
+
+### SIGTERM
+
+The sigterm handler function will be run, and on completion (it should return a promise that resolves), a file `/var/node-svc-base/graceful-shutdown-${name}` will be written. A process waiting for graceful shutdown to complete can watch for this file's creation (for example, a kubernetes `preStop` hook can send `systemctl kill -s SIGTERM ${service}` and then wait on this file.
 
 ### Service discovery of dashboards / alerts
 

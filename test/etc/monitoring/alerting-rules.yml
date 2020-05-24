@@ -1,0 +1,10 @@
+groups:
+
+- name: mock-svc
+
+  rules:
+
+  - alert: Alert1
+    expr: avg_over_time(some_counter_total[10m]) > 95
+    annotations:
+      summary: "Alert1 in {{ $labels.node_ip }}"
