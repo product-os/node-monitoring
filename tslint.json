@@ -1,0 +1,5 @@
+{
+  "extends": [
+    "resin-lint/config/tslint-prettier.json"
+  ]
+}

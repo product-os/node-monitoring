@@ -1,0 +1,19 @@
+[Unit]
+Description=mock Svc
+Requires=network-online.target
+After=network-online.target
+After=confd.service
+
+[Service]
+StandardOutput=journal+console
+StandardError=journal+console
+Type=simple
+
+ExecStart=node /usr/src/app/init.js
+
+Restart=never
+SyslogIdentifier=mock-svc
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target
