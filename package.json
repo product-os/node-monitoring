@@ -12,7 +12,7 @@
     "lint": "npm run lint:typescript"
   },
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "dependencies": {
     "@balena/node-metrics-gatherer": "^5.7.0",
     "@types/express": "^4.17.6",
