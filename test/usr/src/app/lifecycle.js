@@ -8,11 +8,9 @@ const healthCheck = (() => {
 })();
 
 // take 2 seconds to "graceful shutdown"
-const handleSIGTERM = () => {
-    return new Promise((resolve, reject) => {
-        setTimeout(resolve, 2 * 1000);
-    });
-};
+const handleSIGTERM = (terminate) => {
+    console.log('Caught SIGTERM. Handling...');
+}
 
 module.exports = {
     healthCheck,
