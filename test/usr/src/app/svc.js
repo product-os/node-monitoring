@@ -1,13 +1,13 @@
 const { Svc } = require('../../../../out');
+const { healthCheck, handleSIGTERM } = require('./lifecycle');
 
-const { describeMetrics } = require('./metrics');
-const { healthCheck, handleSIGTERM } = require('./process');
+const metricsConfig = require('./metricsConfig');
 
 const svc = new Svc('mock-svc',
     {
         healthCheck,
-        describeMetrics,
-        handleSIGTERM
+        handleSIGTERM,
+        metricsConfig,
     }
 );
 

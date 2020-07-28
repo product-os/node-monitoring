@@ -1,7 +1,7 @@
 node-svc-base
 ===
 
-Bringing some consistent form and best-practices to node apps.
+Bringing some consistent form and best-practices to node apps, especially when it comes to metrics.
 
 ### Basic usage
 
@@ -10,29 +10,30 @@ Create a `svc.js`:
 ```javascript
 const { Svc } = require('@balena/node-svc-base');
 
-const { describeMetrics } = require('./metrics');
-const { healthCheck, handleSIGTERM } = require('./process');
+const { metricsConfig } = require('./metrics');
+const { healthCheck, handleSIGTERM } = require('./lifecycle');
 
 const svc = new Svc('mock-svc',
     {
         healthCheck,
-        describeMetrics,
         handleSIGTERM,
+        metricsConfig
     }
 );
 
 module.exports = svc;
 ```
 
-This requires functions of types:
+This requires arguments of types:
 ```typescript
     healthCheck: () => Promise<boolean>,
-    describeMetrics: (metrics: MetricsGatherer) => void,
-    handleSIGTERM: () => Promise<void>,
+    handleSIGTERM: (terminate : () => void) => void,
+    metricsConfig: MetricsConfig
 ```
 
-and this would allow use in other files, like:
+(for the definition of the type `MetricsConfig` see `./src/lib/metrics.ts`)
 
+This allows use in other files, like:
 ```javascript
 const svc = require('./svc');
 const { app, metrics, server } = svc;
@@ -45,7 +46,6 @@ server.timeout = 90000;
 svc.setInitialized();
 ```
 or, in typescript,
-
 ```typescript
 import * as svc from './svc';
 ...
@@ -62,12 +62,19 @@ The full params available when constructing a service can be seen in `src/index.
 ```typescript
 interface Params {
 	healthCheck: () => Promise<boolean>;
-	describeMetrics: (metrics: MetricsGatherer) => void;
-	handleSIGTERM: () => Promise<void>;
+	metricsConfig: MetricsConfig;
+	handleSIGTERM: (() => void) => void;
 	monitoringDir?: string;
 	app?: express.Application;
 }
 ```
+### MetricsConfig
+
+The `metricsConfig` parameter is important since it allows one to specify many different but related aspects of metrics, as an object with top-level keys: `metrics`, `recording_rules`, `alerts`, `dashboards`. See `./src/lib/metrics.ts` for the type signatures of the objects under these keys.
+
+### Graceful Shutdown
+
+When the process receives SIGTERM, the `handleSIGTERM` function will be called, and `svc.isTerminating()` will begin to return `true`. When the work has been done to gracefully handle SIGTERM, the user code can call `svc.terminate()` or - which is the same function - can call `terminate : () => void` passed to `handleSIGTERM`, which will call `process.exit(0)`.
 
 ### Ports
 

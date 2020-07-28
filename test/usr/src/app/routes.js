@@ -1,13 +1,12 @@
 const { metrics } = require('./svc');
-const { metricNames } = require('./metrics');
 
 const hello = (req, res) => {
-    metrics.inc(metricNames.A_GAUGE, 26);
+    metrics.counter.hello_total.inc(1);
     res.status(200).send('hello');
 };
 
 const goodbye = (req, res) => {
-    metrics.dec(metricNames.A_GAUGE, 26);
+    metrics.counter.goodbye_total.inc(1);
     res.status(200).send('goodbye');
 };
 
