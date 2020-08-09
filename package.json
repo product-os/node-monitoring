@@ -4,7 +4,8 @@
   "description": "",
   "main": "out/index.js",
   "scripts": {
-    "test": "npm run lint && npm run prepare && ./automation/test.sh",
+    "test": "npm run lint && npm run prepare && npm run mochatest",
+    "mochatest": "TS_NODE_FILES=true npx mocha --exit -r ts-node/register test/*.spec.ts",
     "build": "npx tsc --project ./tsconfig.build.json",
     "prettify": "resin-lint --typescript --fix src/",
     "lint:typescript": "resin-lint --typescript src/ && tsc --noEmit",
