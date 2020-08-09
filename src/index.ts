@@ -69,6 +69,7 @@ export class Monitoring {
 
 	private setupMetrics() {
 		this.metricsRegistry = new prometheus.Registry();
+		this.metricsRegistry.setDefaultLabels({ svc_name: this.name });
 		prometheus.collectDefaultMetrics({
 			register: this.metricsRegistry,
 		});
