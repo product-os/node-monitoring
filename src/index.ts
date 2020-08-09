@@ -6,94 +6,67 @@ import * as prometheus from 'prom-client';
 
 import * as yaml from 'js-yaml';
 
-import { collectAPIMetrics } from './lib/api-metrics';
-import * as config from './lib/config';
-import * as dashboardBase from './lib/dashboard-base';
+import { apiMetricsMiddleware } from './api-metrics';
+import * as config from './config';
 import {
 	AlertingRuleSchema,
-	MetricsConfig,
 	MetricsMap,
-	metricsMapFromConfig,
+	MonitoringConfig,
 	RecordingRuleSchema,
-} from './lib/metrics';
+} from './types';
+
+const metricsMapFromConfig = (
+	monitoringConfig: MonitoringConfig,
+	registry: prometheus.Registry,
+): MetricsMap => {
+	const map: MetricsMap = {
+		gauge: {},
+		counter: {},
+		histogram: {},
+		summary: {},
+	};
+	// trying to merge the below 4 loops into 1 generic loop is a typing nightmare
+	for (const schema of monitoringConfig.metrics.counter || []) {
+		map.counter[schema.name] = new prometheus.Counter(schema);
+		registry.registerMetric(map.counter[schema.name]);
+	}
+	for (const schema of monitoringConfig.metrics.gauge || []) {
+		map.gauge[schema.name] = new prometheus.Gauge(schema);
+		registry.registerMetric(map.gauge[schema.name]);
+	}
+	for (const schema of monitoringConfig.metrics.histogram || []) {
+		map.histogram[schema.name] = new prometheus.Histogram(schema);
+		registry.registerMetric(map.histogram[schema.name]);
+	}
+	for (const schema of monitoringConfig.metrics.summary || []) {
+		map.summary[schema.name] = new prometheus.Summary(schema);
+		registry.registerMetric(map.summary[schema.name]);
+	}
+	return map;
+};
 
 interface Params {
-	healthCheck: () => Promise<boolean>;
-	metricsConfig: MetricsConfig;
-	handleSIGTERM: (terminate: () => void) => void;
+	monitoringConfig: MonitoringConfig;
 	monitoringDir?: string;
-	app?: express.Application;
 }
 
-export class Svc {
+export class Monitoring {
 	private params: Params;
-	private _initialized: boolean;
-	private _terminating: boolean;
-	// used by testing to signal that `process.exit(0)` would have run
-	public _isTerminated: boolean;
 
 	public name: string;
-	public app: express.Application;
-	public server: ReturnType<typeof express.application.listen>;
 	public metrics: MetricsMap;
 	public metricsRegistry: prometheus.Registry;
-	public state: { [key: string]: any };
 
 	constructor(name: string, params: Params) {
 		this.name = name;
 		this.params = params;
 
 		this.setupMetrics();
-		this.setupApp();
-		this.setupReadyCheck();
-		this.setupSIGTERMHandler();
 		this.setupMonitoringDiscovery();
-
-		this._initialized = false;
-		this._terminating = false;
-		this._isTerminated = false;
-	}
-
-	// lifecycle management / predicates
-
-	public setInitialized() {
-		console.log(`${this.name} initialized.`);
-		this._initialized = true;
-	}
-	public isTerminating() {
-		return this._terminating;
-	}
-	public terminate(testing: boolean = false) {
-		console.log(`${this.name} will now terminate.`);
-		if (testing) {
-			this._isTerminated = true;
-		} else {
-			process.exit(0);
-		}
 	}
 
 	// setup functions
 
-	private setupApp() {
-		this.app = this.params.app || express();
-		collectAPIMetrics(this.app, this.metricsRegistry);
-		console.log(`serving ${this.name} on ${config.SVC_PORT}...`);
-		this.server = this.app.listen(config.SVC_PORT);
-	}
-	private setupReadyCheck() {
-		this.app.use('/ready', async (_, res) => {
-			res.sendStatus(
-				this._initialized && (await this.params.healthCheck()) ? 200 : 503,
-			);
-		});
-	}
-	private setupSIGTERMHandler() {
-		process.on('SIGTERM', () => {
-			console.log(`${this.name} caught SIGTERM`);
-			this._terminating = true;
-			this.params.handleSIGTERM(this.terminate.bind(this));
-		});
-	}
 	private setupMetrics() {
 		this.metricsRegistry = new prometheus.Registry();
 		prometheus.collectDefaultMetrics({
@@ -105,7 +78,7 @@ export class Svc {
 	private constructMetrics() {
 		console.log('describing metrics...');
 		this.metrics = metricsMapFromConfig(
-			this.params.metricsConfig,
+			this.params.monitoringConfig,
 			this.metricsRegistry,
 		);
 	}
@@ -117,7 +90,7 @@ export class Svc {
 			this.serveRules.bind(
 				this,
 				'alert',
-				this.params.metricsConfig.alerting_rules,
+				this.params.monitoringConfig.alerting_rules,
 			),
 		);
 		app.get(
@@ -125,16 +98,20 @@ export class Svc {
 			this.serveRules.bind(
 				this,
 				'record',
-				this.params.metricsConfig.recording_rules,
+				this.params.monitoringConfig.recording_rules,
 			),
 		);
 		console.log(
-			`serving dashboards, alerting-rules, recording-rules on ${config.MONITOR_DISCOVERY_PORT}...`,
+			`serving dashboards, alerting-rules, recording-rules on ${config.DISCOVERY_PORT}...`,
 		);
-		app.listen(config.MONITOR_DISCOVERY_PORT);
+		app.listen(config.DISCOVERY_PORT);
 	}
 
 	// express servers / handlers
+
+	public middleware() {
+		return apiMetricsMiddleware(this.metricsRegistry);
+	}
 
 	private serveMetrics() {
 		const app = express();
@@ -148,26 +125,17 @@ export class Svc {
 	}
 
 	private serveDashboards(_: express.Request, res: express.Response) {
-		const dashboardDir = `${config.MONITORING_DIR}/dashboards/`;
-		const dashboards = [];
+		const dir = config.DASHBOARDS_DIR;
+		const dashboards: any[] = [];
 		// file dashboards
-		if (fs.existsSync(dashboardDir)) {
-			fs.readdirSync(dashboardDir)
+		if (fs.existsSync(dir)) {
+			fs.readdirSync(dir)
 				.filter(file => /.+\.json$/.test(file))
-				.map(file => `${dashboardDir}/${file}`)
+				.map(file => `${dir}/${file}`)
 				.map(path => JSON.parse(fs.readFileSync(path).toString()))
 				.forEach(dashboard => {
 					dashboards.push(dashboard);
 				});
-		}
-		// generated dashboards from config
-		if (this.params.metricsConfig.dashboards) {
-			for (const [uid, patch] of Object.entries(
-				this.params.metricsConfig.dashboards,
-			)) {
-				const dashboard = Object.assign({ uid }, dashboardBase, patch);
-				dashboards.push(dashboard);
-			}
 		}
 		res.send(dashboards);
 	}
@@ -175,8 +143,8 @@ export class Svc {
 	private serveRules(
 		nameKey: string,
 		rules:
-			| MetricsConfig['recording_rules']
-			| MetricsConfig['alerting_rules']
+			| MonitoringConfig['recording_rules']
+			| MonitoringConfig['alerting_rules']
 			| {} = {},
 		_: express.Request,
 		res: express.Response,

@@ -1,95 +1,54 @@
-node-svc-base
+node-monitoring
 ===
 
-Bringing some consistent form and best-practices to node apps, especially when it comes to metrics.
+### Ideas
+
+1. Standardization: Provides a module which standardizes aspects of monitoring setup (metrics object construction / use)
+
+2. Source of truth: Enforces a config object which defines the metrics, alerts, recording rules
+
+3. Modularization: apps define (and expose for discovery) their *own* alerts, recording rules, dashboards, rather than a central repo
 
 ### Basic usage
 
-Create a `svc.js`:
+![diagram of node-monitoring usage](https://docs.google.com/drawings/d/e/2PACX-1vQ4hqdIU7mpEvMnukgKqFdCqaacOodd-z0jLJgCDOvUqEejZ4lG2SOKVH3fLlHOu3sWS-6Fs6Q-GC13/pub?w=841&amp;h=609)
 
-```javascript
-const { Svc } = require('@balena/node-svc-base');
+### Metrics
 
-const { metricsConfig } = require('./metrics');
-const { healthCheck, handleSIGTERM } = require('./lifecycle');
+Metrics are defined by the `monitoringConfig.metrics.{counter,gauge,histogram,summary}` objects, for example:
 
-const svc = new Svc('mock-svc',
-    {
-        healthCheck,
-        handleSIGTERM,
-        metricsConfig
+```
+{
+    metrics: {
+	counter: [
+	    {
+	    name: "builder_build_complete_total",
+	    help: "number of build requests completed"
+	    }
+	],
+	histogram: [
+	    {
+	    name: "builder_build_image_size_bytes",
+	    help: "bytes per image built",
+	    buckets: imageSizeBuckets
+	    }
+	]
     }
-);
-
-module.exports = svc;
-```
-
-This requires arguments of types:
-```typescript
-    healthCheck: () => Promise<boolean>,
-    handleSIGTERM: (terminate : () => void) => void,
-    metricsConfig: MetricsConfig
-```
-
-(for the definition of the type `MetricsConfig` see `./src/lib/metrics.ts`)
-
-This allows use in other files, like:
-```javascript
-const svc = require('./svc');
-const { app, metrics, server } = svc;
-
-app.get('/hello', (req, res) => {
-    metrics.inc('hello_total', 1);
-    ses.send('hello');
-});
-server.timeout = 90000;
-svc.setInitialized();
-```
-or, in typescript,
-```typescript
-import * as svc from './svc';
-...
-```
-
-**NOTE**: It's important to call `setInitialized()` when your app is ready to serve, or it won't be marked healthy by k8s.
-
-See `./automation/usr/src/app/` for the full example app.
-
-### Params
-
-The full params available when constructing a service can be seen in `src/index.ts`:
-
-```typescript
-interface Params {
-	healthCheck: () => Promise<boolean>;
-	metricsConfig: MetricsConfig;
-	handleSIGTERM: (() => void) => void;
-	monitoringDir?: string;
-	app?: express.Application;
 }
 ```
-### MetricsConfig
 
-The `metricsConfig` parameter is important since it allows one to specify many different but related aspects of metrics, as an object with top-level keys: `metrics`, `recording_rules`, `alerts`, `dashboards`. See `./src/lib/metrics.ts` for the type signatures of the objects under these keys.
+The schema for each object is that schema expected as argument by the constructors for `prometheus.Counter`, `prometheus.Histogram`, etc. in the [`prom-client`](https://github.com/siimon/prom-client) nodejs prometheus client library.
 
-### Graceful Shutdown
+Once the code using this module has constructed a `Monitoring` object as in the diagram above, metrics objects (of the types from `prom-client`) can be accessed on the `monitoring.metrics` object (as also shown in the diagram).
 
-When the process receives SIGTERM, the `handleSIGTERM` function will be called, and `svc.isTerminating()` will begin to return `true`. When the work has been done to gracefully handle SIGTERM, the user code can call `svc.terminate()` or - which is the same function - can call `terminate : () => void` passed to `handleSIGTERM`, which will call `process.exit(0)`.
+### Alerting-rules / Recording-rules
 
-### Ports
+The schema for defining alerting rules and recording rules on the `alerting_rules` and `recording_rules` keys of the `monitoringConfig` object is the JSON equivalent of the YAML schema defined by the Prometheus documentation ([alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/), [recording rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/)).
 
-- `8080` express app (components add their routes, middlewares here)
-- `9090` prometheus metrics (from @balena/node-metrics-gatherer)
-- `9393` service-discovery for dashboards and alerts
+### Discovery
 
-### SIGTERM
+- Any `.json` files representing grafana dashboards in `/etc/monitoring/dashboards/` will be discoverable on `:9393/dashboards`.
 
-The sigterm handler function will be run, and on completion (it should return a promise that resolves), a file `/var/node-svc-base/graceful-shutdown-${name}` will be written. A process waiting for graceful shutdown to complete can watch for this file's creation (for example, a kubernetes `preStop` hook can send `systemctl kill -s SIGTERM ${service}` and then wait on this file.
+- Prometheus metrics will be discoverable on `:9090/metrics`.
 
-### Service discovery of dashboards / alerts
-
-The following will automatically served, to be discovered by our monitoring system:
-
-- Any `.json` files representing grafana dashboards in `/etc/monitoring/dashboards/`
-
-- Any prometheus alerts defined in `/etc/monitoring/alerting-rules.yml` see [Prometheus docs - "Alerting Rules"](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/) for syntax.
+- Alerting rules and recording rules will be discoverable on `:9393/alerting-rules`, `:9393/recording-rules`.

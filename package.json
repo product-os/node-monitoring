@@ -1,5 +1,5 @@
 {
-  "name": "@balena/node-svc-base",
+  "name": "@balena/node-monitoring",
   "version": "1.0.1",
   "description": "",
   "main": "out/index.js",
