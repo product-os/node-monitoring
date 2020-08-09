@@ -24,11 +24,11 @@ export const bytesRWBuckets: number[] =
 // they don't appear by "surprise" to the prometheus client library, which will
 // cause a thrown error. See: https://github.com/siimon/prom-client/issues/298
 const commonLabels = [
-	'queueName',
-	'userAgent',
-	'apiVersion',
+	'queue_name',
+	'user_agent',
+	'api_version',
 	'state',
-	'statusCode',
+	'status_code',
 ];
 
 const API_ARRIVAL_TOTAL = new prometheus.Counter({
@@ -125,7 +125,7 @@ export const apiMetricsMiddleware = (registry: prometheus.Registry) => {
 			req._metrics_gatherer.labels.state = req.aborted
 				? 'aborted'
 				: 'completed';
-			req._metrics_gatherer.labels.statusCode = res.statusCode || '';
+			req._metrics_gatherer.labels.status_code = res.statusCode || '';
 			onFinishFuncs.forEach(f => f());
 		});
 		next();
