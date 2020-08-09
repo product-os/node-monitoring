@@ -62,6 +62,10 @@ const API_LATENCY_SECONDS = new prometheus.Histogram({
 // it may be necessary to modify the request object in various ways, this can
 // be done in this function. For example, a `_metrics_gatherer` object is
 // added to req and req.connection for the purposes of metrics observing functions
+//
+// NOTE: user code (for example, in middlewares) can also access and modify this, but
+// must add labels among the set above (prom-client requires labelsets declared at
+// metric object creation time. See: https://github.com/siimon/prom-client/issues/298)
 const modifyReq = (req: Request) => {
 	req._metrics_gatherer = {
 		labels: {},
