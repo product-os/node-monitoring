@@ -1,14 +1,6 @@
 node-monitoring
 ===
 
-### Ideas
-
-1. Standardization: Provides a module which standardizes aspects of monitoring setup (metrics object construction / use)
-
-2. Source of truth: Enforces a config object which defines the metrics, alerts, recording rules
-
-3. Modularization: apps define (and expose for discovery) their *own* alerts, recording rules, dashboards, rather than a central repo
-
 ### Self-serve monitoring
 
 ![diagram of self-serve monitoring](https://docs.google.com/drawings/d/e/2PACX-1vQZgiN8yOzRARuJx5infWM-yS9ldKT-nbXZ0FInfGLlInjNdcvYG3AYOaC0XdOxho2uJt5ThMcqEC3A/pub?w=893&amp;h=694)
