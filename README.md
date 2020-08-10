@@ -9,6 +9,10 @@ node-monitoring
 
 3. Modularization: apps define (and expose for discovery) their *own* alerts, recording rules, dashboards, rather than a central repo
 
+### Self-serve monitoring
+
+![diagram of self-serve monitoring](https://docs.google.com/drawings/d/e/2PACX-1vQZgiN8yOzRARuJx5infWM-yS9ldKT-nbXZ0FInfGLlInjNdcvYG3AYOaC0XdOxho2uJt5ThMcqEC3A/pub?w=893&amp;h=694)
+
 ### Basic usage
 
 ![diagram of node-monitoring usage](https://docs.google.com/drawings/d/e/2PACX-1vQ4hqdIU7mpEvMnukgKqFdCqaacOodd-z0jLJgCDOvUqEejZ4lG2SOKVH3fLlHOu3sWS-6Fs6Q-GC13/pub?w=841&amp;h=609)
